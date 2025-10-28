@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE_NAME = "myapp-${env.BRANCH_NAME}"
+    }
+
     stages {
         stage('Clone Repository') {
             steps {
@@ -11,7 +15,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    dockerImage = docker.build("myapp:${env.BRANCH_NAME}")
+                    sh 'docker build -t $IMAGE_NAME .'
                 }
             }
         }
@@ -19,7 +23,10 @@ pipeline {
         stage('Run Container') {
             steps {
                 script {
-                    dockerImage.run("-d -p 5000:5000")
+                    // Stop any existing container
+                    sh 'docker rm -f $IMAGE_NAME || true'
+                    // Run new one
+                    sh 'docker run -d -p 5000:5000 --name $IMAGE_NAME $IMAGE_NAME'
                 }
             }
         }
