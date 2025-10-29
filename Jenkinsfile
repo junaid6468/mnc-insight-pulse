@@ -8,7 +8,8 @@ pipeline {
     DOCKERHUB_CRED  = "dockerhub-token"                   // Jenkins credential ID (Secret Text)
     APP_CONTAINER   = "mnc-insight-pulse-container"       // Container name for deployment
     HOST_PORT       = "3000"                              // Host port to expose (maps to container:80)
-    PATH            = "/usr/local/bin:${PATH}"            // Ensure Node & Docker paths are included
+    PATH = "/usr/local/bin:/usr/bin:/bin:${PATH}"   // <--- Add this line
+
   }
 
   stages {
