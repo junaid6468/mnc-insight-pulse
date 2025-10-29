@@ -6,15 +6,17 @@ pipeline {
     DOCKERHUB_USER = "junaid6468"        // <- change if different
     DOCKERHUB_CRED = "dockerhub-token"  // <- Jenkins credential ID (secret text)
     APP_CONTAINER = "mnc-insight-pulse-container"
-    HOST_PORT = "3000"                   // host port to expose (avoid 8080)
+    HOST_PORT = "3000"  // host port to expose (avoid 8080)
+    PATH = "/usr/local/bin:${PATH}"
   }
-
   stages {
     stage('Prepare') {
       steps {
         script {
           echo "Branch: ${env.BRANCH_NAME}"
           sh 'node -v || true'
+          sh 'node -v'
+          sh 'npm -v'
         }
       }
     }
