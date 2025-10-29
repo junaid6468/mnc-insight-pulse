@@ -2,27 +2,34 @@ pipeline {
   agent any
 
   environment {
-    IMAGE_NAME = "mnc-insight-pulse"
-    DOCKERHUB_USER = "junaid6468"        // <- change if different
-    DOCKERHUB_CRED = "dockerhub-token"  // <- Jenkins credential ID (secret text)
-    APP_CONTAINER = "mnc-insight-pulse-container"
-    HOST_PORT = "3000"  // host port to expose (avoid 8080)
-    PATH = "/usr/local/bin:${PATH}"
+    // ====== Environment Variables ======
+    IMAGE_NAME      = "mnc-insight-pulse"                 // Name of your app image
+    DOCKERHUB_USER  = "junaid6468"                        // Your Docker Hub username
+    DOCKERHUB_CRED  = "dockerhub-token"                   // Jenkins credential ID (Secret Text)
+    APP_CONTAINER   = "mnc-insight-pulse-container"       // Container name for deployment
+    HOST_PORT       = "3000"                              // Host port to expose (maps to container:80)
+    PATH            = "/usr/local/bin:${PATH}"            // Ensure Node & Docker paths are included
   }
+
   stages {
+
+    // ====== 1️⃣ Preparation Stage ======
     stage('Prepare') {
       steps {
         script {
-          echo "Branch: ${env.BRANCH_NAME}"
+          echo "🔹 Checking environment setup..."
+          echo "Branch Name: ${env.BRANCH_NAME}"
           sh 'node -v || true'
-          sh 'node -v'
-          sh 'npm -v'
+          sh 'npm -v || true'
+          sh 'docker -v || true'
         }
       }
     }
 
+    // ====== 2️⃣ Install & Build Stage ======
     stage('Install & Build') {
       steps {
+        echo "🔹 Installing dependencies and building the frontend..."
         sh '''
           npm ci
           npm run build
@@ -30,29 +37,34 @@ pipeline {
       }
     }
 
+    // ====== 3️⃣ Run Tests Stage ======
     stage('Run Tests') {
       steps {
+        echo "🔹 Running tests (if defined in package.json)..."
         sh '''
-          # run tests if present, fail pipeline on test failures
-          if grep -q "\"test\"" package.json; then
+          if grep -q '"test"' package.json; then
             npm run test -- --watchAll=false || exit 1
           else
-            echo "No test script defined - skipping tests"
+            echo "No test script defined — skipping tests."
           fi
         '''
       }
     }
 
+    // ====== 4️⃣ Build Docker Image Stage ======
     stage('Build Docker Image') {
       steps {
+        echo "🔹 Building Docker image..."
         sh '''
           docker build -t ${IMAGE_NAME}:${BRANCH_NAME}-${BUILD_NUMBER} .
         '''
       }
     }
 
+    // ====== 5️⃣ Push Docker Image to Docker Hub ======
     stage('Push to Docker Hub') {
       steps {
+        echo "🔹 Pushing image to Docker Hub..."
         withCredentials([string(credentialsId: "${DOCKERHUB_CRED}", variable: 'DOCKERHUB_TOKEN')]) {
           sh '''
             echo "$DOCKERHUB_TOKEN" | docker login -u ${DOCKERHUB_USER} --password-stdin
@@ -64,27 +76,37 @@ pipeline {
       }
     }
 
-    stage('Deploy (replace)') {
+    // ====== 6️⃣ Deploy Container Stage ======
+    stage('Deploy (Replace Existing Container)') {
       steps {
+        echo "🔹 Deploying new container version..."
         sh '''
-          # stop & remove existing container (if any), then run new one
+          # Stop and remove existing container if it exists
           if docker ps -q -f name=${APP_CONTAINER} | grep -q .; then
+            echo "Stopping and removing existing container..."
             docker stop ${APP_CONTAINER} || true
             docker rm ${APP_CONTAINER} || true
           fi
+
+          # Run new container from latest pushed image
+          echo "Starting new container..."
           docker run -d --name ${APP_CONTAINER} -p ${HOST_PORT}:80 ${DOCKERHUB_USER}/${IMAGE_NAME}:${BRANCH_NAME}-${BUILD_NUMBER}
         '''
       }
     }
   }
 
+  // ====== 7️⃣ Post Build Actions ======
   post {
     success {
-      echo "Deployment SUCCESS — App: http://<server-ip>:${HOST_PORT}"
+      echo "✅ Deployment SUCCESS!"
+      echo "🌐 Application URL: http://<your-server-ip>:${HOST_PORT}"
     }
     failure {
-      echo "Pipeline FAILED — check console output"
+      echo "❌ Pipeline FAILED — check Jenkins console output for details."
+    }
+    always {
+      echo "🔹 Pipeline finished at: ${new Date()}"
     }
   }
 }
-
