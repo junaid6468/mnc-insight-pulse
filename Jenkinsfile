@@ -2,102 +2,110 @@ pipeline {
     agent any
 
     environment {
-        IMAGE = "mnc-insight-pulse"
-        DEV_CONTAINER = "mip_dev"
-        PROD_CONTAINER = "mip_prod"
-        REGISTRY = ""  // Empty for local; add 'yourdockerhub/' if pushing
+        APP_NAME = "mnc-insight-pulse"
+        IMAGE_TAG = "dev-${BUILD_NUMBER}"
+        CONTAINER_NAME = "mip_dev"
+        NETWORK_NAME = "jenkins-net"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: '*/devenv']],
-                    userRemoteConfigs: [[url: 'https://github.com/junaid6468/mnc-insight-pulse.git']]
-                ])
+                git branch: 'devenv', url: 'https://github.com/junaid6468/mnc-insight-pulse.git', credentialsId: 'github-cred'
             }
         }
 
         stage('Verify Files') {
             steps {
-                echo "Listing workspace contents..."
+                echo 'Listing workspace contents...'
                 sh 'ls -al'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${IMAGE}:dev-${env.BUILD_ID} ."
+                echo "Building Docker image..."
+                sh '''
+                docker build -t ${APP_NAME}:${IMAGE_TAG} .
+                '''
             }
         }
 
         stage('Run Dev Container & Smoke Test') {
             steps {
-                sh """
-                    # Stop/remove previous if any
-                    docker rm -f ${DEV_CONTAINER} || true
-                    docker run -d --name ${DEV_CONTAINER} -p 3000:80 ${IMAGE}:dev-${env.BUILD_ID}
-                    # Wait and test (up to 30s)
+                script {
+                    echo "Cleaning old containers..."
+                    sh '''
+                    docker rm -f ${CONTAINER_NAME} || true
+                    docker network create ${NETWORK_NAME} || true
+                    '''
+
+                    echo "Starting new container..."
+                    sh '''
+                    docker run -d --name ${CONTAINER_NAME} \
+                        --network ${NETWORK_NAME} \
+                        -p 3000:80 \
+                        ${APP_NAME}:${IMAGE_TAG}
+
                     echo "Waiting for app to boot..."
-                    for i in \$(seq 1 15); do
-                        HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 || echo "000")
-                        echo "Attempt \$i - HTTP \$HTTP_CODE"
-                        if [ "\$HTTP_CODE" = "200" ]; then
-                            exit 0
-                        fi
-                        sleep 2
+                    for i in {1..15}; do
+                      HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://${CONTAINER_NAME}:80 || true)
+                      echo "Attempt $i - HTTP $HTTP_CODE"
+                      if [ "$HTTP_CODE" = "200" ]; then
+                        echo "Smoke test passed!"
+                        exit 0
+                      fi
+                      sleep 3
                     done
                     echo "Smoke test failed - app not ready"
                     exit 1
-                """
+                    '''
+                }
             }
         }
 
-        stage('Merge devenv -> main and Push') {
+        stage('Merge devenv → main and Push') {
             when {
-                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
             }
             steps {
-                withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
-                    sh """
-                        git config user.email "jenkins@local"
-                        git config user.name "${GIT_USER}"
-                        git remote set-url origin https://${GIT_USER}:${GIT_TOKEN}@github.com/junaid6468/mnc-insight-pulse.git
-                        git fetch origin
-                        git checkout main || git checkout -b main origin/main
-                        git merge --no-ff origin/devenv -m "Automated merge from devenv by Jenkins build #${env.BUILD_ID}"
-                        git push origin main
-                    """
-                }
+                echo 'Merging branch devenv → main...'
+                sh '''
+                git config user.name "Jenkins CI"
+                git config user.email "jenkins@localhost"
+                git checkout main
+                git merge origin/devenv --no-edit
+                git push origin main
+                '''
             }
         }
 
         stage('Deploy to Production') {
             when {
-                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+                expression { currentBuild.resultIsBetterOrEqualTo('SUCCESS') }
             }
             steps {
-                sh """
-                    # Tag and deploy prod
-                    docker tag ${IMAGE}:dev-${env.BUILD_ID} ${IMAGE}:latest
-                    docker rm -f ${PROD_CONTAINER} || true
-                    docker run -d --name ${PROD_CONTAINER} -p 80:80 ${IMAGE}:latest
-                """
+                echo 'Deploying container to production...'
+                sh '''
+                docker rm -f ${APP_NAME}_prod || true
+                docker run -d --name ${APP_NAME}_prod -p 80:80 ${APP_NAME}:${IMAGE_TAG}
+                '''
             }
         }
     }
 
     post {
         always {
-            sh "docker rm -f ${DEV_CONTAINER} || true"
-            echo "Pipeline complete. Prod app at http://localhost (if deployed)."
+            echo "Cleaning up temporary containers..."
+            sh 'docker rm -f ${CONTAINER_NAME} || true'
+            echo "Pipeline complete. Production app at http://localhost"
         }
         failure {
-            echo "Build failed—check logs for details."
+            echo "❌ Build failed — check logs for details."
         }
         success {
-            echo "Success! Merged to main and deployed prod container."
+            echo "✅ Build and deployment successful!"
         }
     }
 }
+
