@@ -14,6 +14,14 @@ pipeline {
             steps {
                 echo "📥 Checking out branch: ${env.BRANCH_NAME}"
                 checkout scm
+                git branch: 'dev', url: 'https://github.com/junaid6468/mnc-insight-pulse.git'
+            }
+        }
+
+        stage('Verify Files') {
+            steps {
+                echo "Listing workspace contents..."
+                sh 'ls -al'
             }
         }
 
@@ -58,6 +66,17 @@ pipeline {
                         error('❌ Smoke test failed — app did not start successfully.')
                     }
                 }
+                dir("${WORKSPACE}") {
+                    sh 'echo "Building Docker image..."'
+                    sh 'docker build -t mnc-insight-pulse .'
+                }
+            }
+        }
+
+        stage('Run Docker Container') {
+            steps {
+                sh 'echo "Running Docker container on port 3000..."'
+                sh 'docker run -d -p 3000:80 mnc-insight-pulse'
             }
         }
 
