@@ -34,13 +34,18 @@ pipeline {
                     sh "docker network create ${NETWORK} || true"
 
                     echo "🚀 Starting new container..."
-                    sh "docker run -d --name ${CONTAINER_NAME} --network ${NETWORK} -p ${PORT}:80 ${IMAGE_NAME}:dev-${BUILD_NUMBER}"
+                    sh """
+                        docker run -d --name ${CONTAINER_NAME} \
+                        --network ${NETWORK} \
+                        -p ${PORT}:80 ${IMAGE_NAME}:dev-${BUILD_NUMBER}
+                    """
 
                     echo "⏳ Waiting for app to boot before running smoke test..."
                     def maxRetries = 15
                     def success = false
                     for (int i = 1; i <= maxRetries; i++) {
-                        def code = sh(script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT} || true", returnStdout: true).trim()
+                        // 🧠 Ping by container name (NOT localhost)
+                        def code = sh(script: "curl -s -o /dev/null -w '%{http_code}' http://${CONTAINER_NAME}:80 || true", returnStdout: true).trim()
                         echo "Attempt ${i}/${maxRetries} — HTTP ${code}"
                         if (code == '200') {
                             echo '✅ Smoke test passed — app is running successfully!'
