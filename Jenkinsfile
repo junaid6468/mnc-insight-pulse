@@ -40,8 +40,8 @@ pipeline {
                     def maxRetries = 15
                     def success = false
                     for (int i = 1; i <= maxRetries; i++) {
-                        def code = sh(script: \"curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT} || true\", returnStdout: true).trim()
-                        echo \"Attempt ${i}/${maxRetries} — HTTP ${code}\"
+                        def code = sh(script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT} || true", returnStdout: true).trim()
+                        echo "Attempt ${i}/${maxRetries} — HTTP ${code}"
                         if (code == '200') {
                             echo '✅ Smoke test passed — app is running successfully!'
                             success = true
