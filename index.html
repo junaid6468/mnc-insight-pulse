@@ -15,14 +15,79 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@lovable_dev" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <style>
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #cce5ff, #e6f7ff);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+      }
+
+      .card {
+        background: white;
+        padding: 30px 50px;
+        border-radius: 15px;
+        box-shadow: 0 4px 25px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        max-width: 700px;
+        animation: fadeIn 1.2s ease-in-out;
+      }
+
+      .success-icon {
+        font-size: 50px;
+        color: #00b300;
+        animation: pulse 1.5s infinite;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.2); opacity: 0.8; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+
+      h2 {
+        color: #0066cc;
+        margin-top: 15px;
+      }
+
+      #version {
+        position: fixed;
+        bottom: 10px;
+        right: 10px;
+        background: #333;
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
-    <h2 style="text-align:center;color:#0066cc;">🚀 Junaid tested Automation Re-Verification and Triggered at Fri Oct 31 20:37:58 IST 2025</h2>
-    <div id="version" style="position: fixed; bottom: 10px; right: 10px; background: #f0f0f0; padding: 5px; font-size: 12px; z-index: 999;">
-      Automated Jenkins Build: Oct 30, 2025 - Title Change Successful
+    <div class="card">
+      <div class="success-icon">✅</div>
+      <h2>🚀 Junaid Verified Jenkins Automation Trigger</h2>
+      <p><strong>Deployed Successfully:</strong> Fri Oct 31 20:37:58 IST 2025</p>
+      <p style="color:#555;">Continuous Deployment Confirmed via Jenkins + Docker Integration</p>
     </div>
+
+    <div id="version">
+      Automated Jenkins Build: <strong>Oct 31, 2025</strong> – Visual Update Successful 🎨
+    </div>
+
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
+
