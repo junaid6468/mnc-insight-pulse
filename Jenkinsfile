@@ -1,69 +1,51 @@
 pipeline {
     agent any
 
+    tools {
+        nodejs 'node-24'
+    }
+
     environment {
-        APP_NAME = "mnc-insight-pulse"
-        IMAGE_NAME = "mnc-insight-pulse:latest"
-        CONTAINER_NAME = "mnc-insight-pulse-container"
-        PORT = "8081"
+        SERVER = '100.53.232.94'   
     }
 
     stages {
+
         stage('Checkout') {
             steps {
-                echo "Checking out code from repository..."
-                git branch: 'devenv', url: 'https://github.com/junaid6468/mnc-insight-pulse.git'
+                git branch: 'main', url: 'https://github.com/junaid6468/mnc-insight-pulse.git'
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build') {
             steps {
-                echo "Building Docker image..."
-                sh 'docker build -t $IMAGE_NAME .'
+                sh 'npm ci'
+                sh 'npm run build'
             }
         }
 
-        stage('Stop Old Container') {
+        stage('Deploy') {
             steps {
-                echo "Stopping old container if running..."
-                // This stops and removes the old container if it exists
-                sh '''
-                    if [ "$(docker ps -aq -f name=$CONTAINER_NAME)" ]; then
-                        docker stop $CONTAINER_NAME || true
-                        docker rm $CONTAINER_NAME || true
-                    fi
-                '''
-            }
-        }
+                withCredentials([sshUserPrivateKey(
+                    credentialsId: 'ec2-key',
+                    keyFileVariable: 'KEY'
+                )]) {
 
-        stage('Run New Container') {
-            steps {
-                echo "Running new container on port $PORT..."
-                sh 'docker run -d --name $CONTAINER_NAME -p $PORT:80 $IMAGE_NAME'
-            }
-        }
+                    sh """
+                        # Sync to home directory first
+                rsync -avz --delete \
+                  -e "ssh -i $KEY -o StrictHostKeyChecking=no" \
+                  dist/ ubuntu@100.53.232.94:/home/ubuntu/dist/
 
-        stage('Verify Deployment') {
-            steps {
-                echo "Verifying if the container is running..."
-                sh '''
-                    echo "Running containers:"
-                    docker ps
-                    echo "Testing access to the deployed app..."
-                    sleep 5
-                    curl -I http://localhost:$PORT || echo "App not reachable yet!"
-                '''
+                # Move with sudo on server
+                ssh -i "$KEY" -o StrictHostKeyChecking=no ubuntu@100.53.232.94 "
+                    sudo rm -rf /var/www/html/*
+                    sudo cp -r /home/ubuntu/dist/* /var/www/html/
+                    sudo systemctl restart nginx
+                "
+                    """
+                }
             }
-        }
-    }
-
-    post {
-        success {
-            echo "✅ Deployment successful! Application is running on port $PORT."
-        }
-        failure {
-            echo "❌ Build failed! Please check the Jenkins logs for errors."
         }
     }
 }
-
